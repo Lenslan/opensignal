@@ -35,6 +35,13 @@ fn write_key() -> io::Result<()> {
     let cmd_value_dir = format!("\"{}\" \"%1\"", script_path);
     dir_key.set_value("", &cmd_value_dir)?;
 
+    // 为文件夹背景添加右键菜单
+    let dir_background_key_path = r"Directory\Background\shell\Open Signal\command";
+    let (dir_background_key, _) = RegKey::predef(HKEY_CLASSES_ROOT)
+        .create_subkey(dir_background_key_path)?;
+    let cmd_value_dir_background = format!("\"{}\" \"%V\"", script_path);
+    dir_background_key.set_value("", &cmd_value_dir_background)?;
+
     Ok(())
 }
 

@@ -254,7 +254,6 @@ fn main() -> io::Result<()> {
 
             for (dir_path, vcd_list) in vcd_files_by_dir {
                 // 切换当前工作目录
-                let original_dir = env::current_dir()?;
                 env::set_current_dir(&dir_path)?;
 
                 let waves = Waves::new(vcd_list)?;
@@ -262,8 +261,6 @@ fn main() -> io::Result<()> {
                      .launch_gtkwave()?
                      .delete_tcl()?;
 
-                // 恢复原始工作目录
-                env::set_current_dir(&original_dir)?;
             }
         }
     }

@@ -1,4 +1,5 @@
 import shutil
+import tarfile
 import subprocess
 import winreg
 import os
@@ -10,20 +11,32 @@ import re
 # modify the Register
 def write_key():
     # add cmd for zip files
-    with winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, r"SystemFileAssociations\.zip", 0, winreg.KEY_WRITE) as key:
+    with winreg.OpenKey(
+        winreg.HKEY_CLASSES_ROOT, r"SystemFileAssociations\.zip", 0, winreg.KEY_WRITE
+    ) as key:
         cmd_subkey = winreg.CreateKey(key, r"shell\Open Signals\command")
         with winreg.OpenKey(cmd_subkey, "", 0, winreg.KEY_WRITE) as cmd_key:
             script_path = os.path.join(os.path.dirname(sys.executable), sys.argv[0])
             cmd_value = f'"{script_path}"' + ' "%1"'
-            winreg.SetValue(cmd_key, '', winreg.REG_SZ, cmd_value)
+            winreg.SetValue(cmd_key, "", winreg.REG_SZ, cmd_value)
 
     # add cmd for directory
-    with winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, r"Directory\shell", 0, winreg.KEY_WRITE) as key:
+    with winreg.OpenKey(
+        winreg.HKEY_CLASSES_ROOT, r"Directory\shell", 0, winreg.KEY_WRITE
+    ) as key:
         cmd_subkey = winreg.CreateKey(key, r"Open Signal\command")
         with winreg.OpenKey(cmd_subkey, "", 0, winreg.KEY_WRITE) as cmd_key:
             script_path = os.path.join(os.path.dirname(sys.executable), sys.argv[0])
             cmd_value = f'"{script_path}"' + ' "%1"'
-            winreg.SetValue(cmd_key, '', winreg.REG_SZ, cmd_value)
+            winreg.SetValue(cmd_key, "", winreg.REG_SZ, cmd_value)
+    with winreg.OpenKey(
+        winreg.HKEY_CLASSES_ROOT, r"Directory\Background\shell", 0, winreg.KEY_WRITE
+    ) as key:
+        cmd_subkey = winreg.CreateKey(key, r"Open Signal\command")
+        with winreg.OpenKey(cmd_subkey, "", 0, winreg.KEY_WRITE) as cmd_key:
+            script_path = os.path.join(os.path.dirname(sys.executable), sys.argv[0])
+            cmd_value = f'"{script_path}"' + ' "%V"'
+            winreg.SetValue(cmd_key, "", winreg.REG_SZ, cmd_value)
 
 
 # waves operation
@@ -32,9 +45,9 @@ class Waves:
         self.waves_list = path_list
         self.pwd = os.path.dirname(sys.executable)
         self.signal_list = []
-        self.tcl_file = os.path.join(os.getcwd(),"add_signal.tcl")
+        self.tcl_file = os.path.join(os.getcwd(), "add_signal.tcl")
         self.readSignalList()
-        self.tcl_template = '''
+        self.tcl_template = """
 proc add_sig {} {
     set nfacs [ gtkwave::getNumFacs ]
     set all_facs [list]
@@ -52,23 +65,29 @@ proc add_sig {} {
         }
         if {$no_x} {lappend all_facs "$facname"}
     }
-'''
+"""
         if len(self.signal_list) > 0:
-            self.tcl_template = self.tcl_template + f"set ex_facs [list {' '.join(f'{{{item}}}' for item in self.signal_list)}]\ngtkwave::addSignalsFromList $ex_facs\n"
-        self.tcl_template = self.tcl_template + "gtkwave::addSignalsFromList $all_facs\ngtkwave::/Time/Zoom/Zoom_Full\n}\n"
+            self.tcl_template = (
+                self.tcl_template
+                + f"set ex_facs [list {' '.join(f'{{{item}}}' for item in self.signal_list)}]\ngtkwave::addSignalsFromList $ex_facs\n"
+            )
+        self.tcl_template = (
+            self.tcl_template
+            + "gtkwave::addSignalsFromList $all_facs\ngtkwave::/Time/Zoom/Zoom_Full\n}\n"
+        )
 
     # write tcl script for gtkwave
     def wr_tcl(self):
         template = os.path.join(self.pwd, "add_signal_template.tcl")
         if os.path.exists(template):
-            f_temp = open(template, 'r')
+            f_temp = open(template, "r")
             self.tcl_template = f_temp.readlines()
             f_temp.close()
-        with open (self.tcl_file, 'w') as f:
+        with open(self.tcl_file, "w") as f:
             print(self.tcl_file)
             f.write(self.tcl_template)
             for sig in self.waves_list:
-                sig = sig.replace('\\', '/')
+                sig = sig.replace("\\", "/")
                 f.write(f'gtkwave::loadFile "{sig}" \n')
                 f.write("add_sig\n")
             f.write("gtkwave::setTabActive 0")
@@ -82,34 +101,32 @@ proc add_sig {} {
 
     # launch gtkwave
     def launch_gtkwave(self):
-        cmd = os.path.join(self.pwd, 'gtkwave.exe')
+        cmd = os.path.join(self.pwd, "gtkwave.exe")
         # cmd = r'E:\gtkwave\gtkwave\bin\gtkwave.exe'
         cmd = cmd + f" -T ./add_signal.tcl"
         subprocess.run(cmd, shell=True, stdout=subprocess.PIPE)
         return self
-
 
     def readSignalList(self):
         signal_list_path = os.path.join(pathlib.Path.home(), "signal.gtkw")
         if not os.path.exists(signal_list_path):
             print("no signal.gtkw file")
             return
-        with open(signal_list_path, 'r') as f:
+        with open(signal_list_path, "r") as f:
             for line in f:
-                if re.match(r'^[a-zA-Z]', line):
+                if re.match(r"^[a-zA-Z]", line):
                     self.signal_list.append(line.strip())
-
 
 
 # find *.vcd file from input path
 def trace_vcd(p0, p1="", p2=""):
-    path = os.path.join(p2,p1,p0)
+    path = os.path.join(p2, p1, p0)
     if os.path.isdir(path):
         for d in os.listdir(path):
-            for ret in trace_vcd(p2=os.path.join(p2,p1), p1=p0, p0=d):
+            for ret in trace_vcd(p2=os.path.join(p2, p1), p1=p0, p0=d):
                 yield ret
     elif p0.endswith(".vcd") and not p0.startswith("diags"):
-        yield [p2, os.path.join(p1,p0)]
+        yield [p2, os.path.join(p1, p0)]
 
 
 def find_vcd(path):
@@ -122,21 +139,34 @@ def find_vcd(path):
     return res
 
 
-
 # parse input file or directory
 def unpack_file(tar_file):
     if tar_file.endswith(".zip"):
-        unpack_path = os.path.join(pathlib.Path.home(), 'OpenSignal')
+        unpack_path = os.path.join(pathlib.Path.home(), "OpenSignal")
         try:
-            unp = os.path.join(unpack_path, 'temp0')
+            unp = os.path.join(unpack_path, "temp0")
             if os.path.exists(unp):
                 shutil.rmtree(unpack_path)
         except Exception:
             listdir = os.listdir(unpack_path)
             tmp_num = [int(i[4:]) for i in listdir if i.startswith("temp")]
-            unp = os.path.join(unpack_path, 'temp' + str(max(tmp_num)+1))
+            unp = os.path.join(unpack_path, "temp" + str(max(tmp_num) + 1))
         finally:
             shutil.unpack_archive(tar_file, unp)
+        return unp
+    elif tar_file.endswith(".gz"):
+        unpack_path = os.path.join(pathlib.Path.home(), "OpenSignal")
+        try:
+            unp = os.path.join(unpack_path, "temp0")
+            if os.path.exists(unp):
+                shutil.rmtree(unpack_path)
+        except Exception:
+            listdir = os.listdir(unpack_path)
+            tmp_num = [int(i[4:]) for i in listdir if i.startswith("temp")]
+            unp = os.path.join(unpack_path, "temp" + str(max(tmp_num) + 1))
+        finally:
+            with tarfile.open(tar_file, "r:gz") as tar:
+                tar.extractall(path=unp)
         return unp
     else:
         return tar_file
@@ -146,7 +176,7 @@ def run():
     if len(sys.argv) == 1:
         try:
             write_key()
-            print('Init Over!!')
+            print("Init Over!!")
             input()
         except Exception as e:
             print(e)
@@ -159,7 +189,6 @@ def run():
             if k:
                 os.chdir(k)
             Waves(res[k]).wr_tcl().launch_gtkwave().del_tcl()
-
 
 
 if __name__ == "__main__":

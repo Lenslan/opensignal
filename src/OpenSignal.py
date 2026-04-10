@@ -39,6 +39,17 @@ def write_key():
             winreg.SetValue(cmd_key, "", winreg.REG_SZ, cmd_value)
 
 
+def read_alias_file():
+    cfg_path = os.path.join(os.path.dirname(sys.executable), "opensignal_cfg")
+    if not os.path.exists(cfg_path):
+        os.mkdir(cfg_path)
+    alias_files = [(os.path.join(cfg_path, f), f[0:-3]) for f in os.listdir(cfg_path) if f.endswith(".la")]
+    return f"""
+set alias_cfg {{
+    {"\n".join([f'{{"{res[0].replace("\\", "/")}" "{res[1]}"}}' for res in alias_files])}
+}}\n
+"""
+
 # waves operation
 class Waves:
     def __init__(self, path_list):
@@ -47,10 +58,10 @@ class Waves:
         self.signal_list = []
         self.tcl_file = os.path.join(os.getcwd(), "add_signal.tcl")
         self.readSignalList()
-        self.tcl_template = """
-proc add_sig {} {
+        self.tcl_template = "proc add_sig {} {" + read_alias_file() + """
     set nfacs [ gtkwave::getNumFacs ]
     set all_facs [list]
+    array set alias_map {}
     for {set i 0} {$i < $nfacs } {incr i} {
         set facname [gtkwave::getFacName $i]
         set facname2 [gtkwave::getFacName $i]
@@ -63,7 +74,16 @@ proc add_sig {} {
                 break
             }
         }
-        if {$no_x} {lappend all_facs "$facname"}
+        if {$no_x} {
+            lappend all_facs $facname
+            foreach cfg $alias_cfg {
+                set file [lindex $cfg 0]
+                set key [lindex $cfg 1]
+                if {[string first $key $facname] != -1} {
+                    lappend alias_map($file) $facname
+                }
+            }
+        }
     }
 """
         if len(self.signal_list) > 0:
@@ -72,8 +92,21 @@ proc add_sig {} {
                 + f"set ex_facs [list {' '.join(f'{{{item}}}' for item in self.signal_list)}]\ngtkwave::addSignalsFromList $ex_facs\n"
             )
         self.tcl_template = (
-            self.tcl_template
-            + "gtkwave::addSignalsFromList $all_facs\ngtkwave::/Time/Zoom/Zoom_Full\n}\n"
+            self.tcl_template +"""
+gtkwave::addSignalsFromList $all_facs
+gtkwave::highlightSignalsFromList $all_facs
+gtkwave::/Edit/Data_Format/Decimal
+gtkwave::/Edit/UnHighlight_All
+foreach file [array names alias_map] {
+    set sigs $alias_map($file)
+    if {[llength $sigs] > 0} {
+        gtkwave::highlightSignalsFromList $sigs
+        set which_f [gtkwave::setCurrentTranslateFile $file]
+        gtkwave::installFileFilter $which_f
+        gtkwave::/Edit/UnHighlight_All
+    }
+}
+gtkwave::/Time/Zoom/Zoom_Full\n}\n"""
         )
 
     # write tcl script for gtkwave

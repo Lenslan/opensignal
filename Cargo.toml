@@ -1,12 +1,11 @@
 [package]
 name = "opensignal"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [dependencies]
-winreg = "0.55.0"
+winreg = "0.52"
 zip = "0.6"
-regex = "1.5"
-walkdir = "2.3"
+walkdir = "2.4"
+regex = "1.10"
 home = "0.5"
-tempfile = "3.2"

@@ -1,2 +1,5 @@
 /target
 /.idea
+*.spec
+/build
+/dist
